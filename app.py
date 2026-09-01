@@ -1,3 +1,4 @@
+
 """
 Brújula Metodológica — motor de revisión automática de capítulos de
 metodología de investigación.
@@ -255,4 +256,22 @@ if submitted:
                     chapter_text, context_text, theory_text
                 )
             except Exception as exc:  # noqa: BLE001
-                st.session_state.rev
+                st.session_state.review_result = None
+                st.error(f"No se pudo generar la revisión: {exc}")
+
+if st.session_state.review_result:
+    st.divider()
+    st.markdown(st.session_state.review_result)
+    st.download_button(
+        "Descargar revisión (.md)",
+        data=st.session_state.review_result,
+        file_name=f"revision_metodologia_{datetime.now():%Y%m%d_%H%M}.md",
+        mime="text/markdown",
+        use_container_width=True,
+    )
+
+st.divider()
+st.caption(
+    "Brújula Metodológica no reemplaza a tu asesor de tesis: es una primera "
+    "revisión para que llegues mejor preparado."
+)
