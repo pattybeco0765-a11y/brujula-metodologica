@@ -97,6 +97,16 @@ que aplicarían a cualquier tesis. Sé precisa y concisa: prioriza la
 observación más útil sobre la exhaustividad, y no repitas en un criterio
 algo ya señalado en otro.
 
+CRÍTICO — coherencia entre ícono y texto: el ícono debe reflejar
+exactamente lo que dice el párrafo. Si el párrafo describe una ausencia
+total o un problema grave (por ejemplo, "no existe un apartado de...",
+"está completamente ausente"), el ícono DEBE ser ❌, nunca ✅ ni ⚠️. Si
+describe que algo existe pero necesita ajustes o le falta un detalle
+puntual, usa ⚠️. Usa ✅ solo si no hay pendientes sustanciales que
+mencionar. Antes de escribir el ícono, decide primero qué vas a decir en
+el párrafo y elige el ícono que corresponda a esa conclusión — nunca al
+revés.
+
 ## Qué corregir primero
 Lista priorizada (máximo 5 puntos) de las acciones concretas con mayor
 impacto, ordenadas de más a menos urgente.
@@ -167,6 +177,7 @@ def run_review(chapter_text: str, context_text: str, theory_text: str) -> str:
     response = client.messages.create(
         model=MODEL,
         max_tokens=6500,
+        temperature=0.3,
         system=RUBRIC_SYSTEM_PROMPT,
         messages=[{"role": "user", "content": user_message}],
     )
@@ -244,23 +255,4 @@ if submitted:
                     chapter_text, context_text, theory_text
                 )
             except Exception as exc:  # noqa: BLE001
-                st.session_state.review_result = None
-                st.error(f"No se pudo generar la revisión: {exc}")
-
-if st.session_state.review_result:
-    st.divider()
-    st.markdown(st.session_state.review_result)
-    st.download_button(
-        "Descargar revisión (.md)",
-        data=st.session_state.review_result,
-        file_name=f"revision_metodologia_{datetime.now():%Y%m%d_%H%M}.md",
-        mime="text/markdown",
-        use_container_width=True,
-    )
-
-st.divider()
-st.caption(
-    "Brújula Metodológica no reemplaza a tu asesor de tesis: es una primera "
-    "revisión para que llegues mejor preparado."
-)
-
+                st.session_state.rev
