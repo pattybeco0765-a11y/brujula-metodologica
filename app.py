@@ -4,8 +4,8 @@ metodología de investigación.
 
 Cómo funciona:
   1. El estudiante pega su capítulo de metodología (y opcionalmente su
-     planteamiento del problema / objetivos) en la app.
-  2. La app llama a la API de Claude (Anthropic) con una rúbrica de 10
+     planteamiento del problema / objetivos, y su marco teórico) en la app.
+  2. La app llama a la API de Claude (Anthropic) con una rúbrica de 13
      criterios inspirada en 25 años de experiencia evaluando trabajos de
      investigación en español.
   3. Devuelve un informe estructurado, descargable, con observaciones
@@ -44,23 +44,43 @@ harías como profesora universitaria, señalando tanto lo que está bien
 como lo que hay que corregir, de forma constructiva y específica (nunca
 genérica).
 
-Evalúa el texto que te entrega el usuario contra estos DIEZ criterios,
+Evalúa el texto que te entrega el usuario contra estos TRECE criterios,
 en este orden:
 
 1. Coherencia con el planteamiento del problema y los objetivos
-2. Tipo y diseño de investigación (enfoque, alcance, diseño, justificación)
-3. Población y muestra (definición, técnica de muestreo, tamaño, criterios)
-4. Variables o categorías de estudio (definición conceptual y operacional)
-5. Instrumentos de recolección de datos (validez, confiabilidad, ficha técnica)
-6. Procedimiento (pasos claros, replicables, secuencia lógica)
-7. Plan de análisis de datos (pertinencia respecto a hipótesis/preguntas)
-8. Consideraciones éticas (consentimiento informado, confidencialidad)
-9. Redacción académica (claridad, cohesión, registro impersonal)
-10. Formato y citación (consistencia con APA vigente)
+2. Fundamentación teórica de las variables/dimensiones (el marco teórico
+   desarrolla explícitamente las variables, dimensiones o categorías que
+   aparecen en los objetivos de la investigación; no basta con mencionarlas
+   de pasada)
+3. Definición conceptual de las variables/dimensiones en el marco teórico
+   (cada variable o dimensión está definida con claridad, citando autor y
+   fuente, y no solo enunciada como título de subsección)
+4. Pertinencia de las definiciones teóricas respecto al objeto de estudio
+   (las teorías y definiciones citadas se conectan explícitamente con el
+   caso particular que aborda la investigación —su contexto, población o
+   fenómeno— y no quedan como teoría genérica desconectada del estudio)
+5. Tipo y diseño de investigación (enfoque, alcance, diseño, justificación)
+6. Población y muestra (definición, técnica de muestreo, tamaño, criterios)
+7. Operacionalización de variables o categorías de estudio (definición
+   operacional, dimensiones, indicadores e ítems en el capítulo de
+   metodología)
+8. Instrumentos de recolección de datos (validez, confiabilidad, ficha técnica)
+9. Procedimiento (pasos claros, replicables, secuencia lógica)
+10. Plan de análisis de datos (pertinencia respecto a hipótesis/preguntas)
+11. Consideraciones éticas (consentimiento informado, confidencialidad)
+12. Redacción académica (claridad, cohesión, registro impersonal)
+13. Formato y citación (consistencia con APA vigente)
 
 Si el usuario no proporcionó planteamiento del problema u objetivos,
 evalúa el criterio 1 basándote solo en la coherencia interna del texto y
 dilo explícitamente.
+
+Si el usuario no proporcionó el marco teórico, evalúa los criterios 2, 3
+y 4 únicamente a partir de lo que sea inferible del capítulo de
+metodología (por ejemplo, la tabla de operacionalización o las variables
+mencionadas en los objetivos), déjalo dicho explícitamente, y recomienda
+en "Qué corregir primero" que comparta el marco teórico completo para una
+evaluación más precisa de esos tres criterios.
 
 Formato de salida (usa markdown):
 
@@ -68,7 +88,7 @@ Formato de salida (usa markdown):
 2-3 frases: nivel general del capítulo y las 2-3 prioridades más urgentes.
 
 ## Revisión por criterio
-Para cada uno de los 10 criterios, un subtítulo con el nombre del
+Para cada uno de los 13 criterios, un subtítulo con el nombre del
 criterio y un ícono de estado al inicio: ✅ (bien encaminado), ⚠️ (necesita
 ajustes) o ❌ (ausente o con problema grave). Debajo, 2-4 frases
 específicas citando o parafraseando el texto del estudiante, nunca
@@ -114,7 +134,7 @@ def check_access(code: str) -> bool:
 # Llamada al modelo
 # ----------------------------------------------------------------------
 
-def run_review(chapter_text: str, context_text: str) -> str:
+def run_review(chapter_text: str, context_text: str, theory_text: str) -> str:
     api_key = st.secrets.get("ANTHROPIC_API_KEY", os.environ.get("ANTHROPIC_API_KEY"))
     if not api_key:
         raise RuntimeError(
@@ -129,10 +149,15 @@ def run_review(chapter_text: str, context_text: str) -> str:
             "\n\n## Planteamiento del problema / objetivos (contexto)\n\n"
             + context_text.strip()
         )
+    if theory_text.strip():
+        user_message += (
+            "\n\n## Marco teórico (contexto, para evaluar los criterios 2, 3 y 4)\n\n"
+            + theory_text.strip()
+        )
 
     response = client.messages.create(
         model=MODEL,
-        max_tokens=3000,
+        max_tokens=4000,
         system=RUBRIC_SYSTEM_PROMPT,
         messages=[{"role": "user", "content": user_message}],
     )
@@ -156,9 +181,10 @@ with st.expander("¿Cómo funciona y cuánto cuesta?", expanded=False):
     st.markdown(
         f"""
         1. Pega tu capítulo de metodología (y opcionalmente tu planteamiento
-           del problema u objetivos, para una revisión más precisa).
+           del problema u objetivos, y tu marco teórico, para una revisión
+           más precisa).
         2. Ingresa tu código de acceso (lo recibes al pagar).
-        3. Recibe tu informe en menos de un minuto, con los 10 criterios
+        3. Recibe tu informe en menos de un minuto, con los 13 criterios
            evaluados y una lista priorizada de qué corregir primero.
 
         **Precio:** ${PRICE_USD} USD por revisión, pago único.
@@ -175,6 +201,13 @@ context_text = st.text_area(
     "Planteamiento del problema / objetivos (opcional, mejora la revisión)",
     height=120,
     placeholder="Pega aquí tu planteamiento del problema y objetivos de investigación...",
+)
+
+theory_text = st.text_area(
+    "Marco teórico (opcional, necesario para evaluar la fundamentación "
+    "teórica de tus variables — criterios 2, 3 y 4)",
+    height=200,
+    placeholder="Pega aquí el texto completo de tu marco teórico (bases teóricas)...",
 )
 
 chapter_text = st.text_area(
@@ -196,9 +229,11 @@ if submitted:
             "escribe a pattybeco0765@gmail.com."
         )
     else:
-        with st.spinner("Revisando tu capítulo con los 10 criterios..."):
+        with st.spinner("Revisando tu capítulo con los 13 criterios..."):
             try:
-                st.session_state.review_result = run_review(chapter_text, context_text)
+                st.session_state.review_result = run_review(
+                    chapter_text, context_text, theory_text
+                )
             except Exception as exc:  # noqa: BLE001
                 st.session_state.review_result = None
                 st.error(f"No se pudo generar la revisión: {exc}")
