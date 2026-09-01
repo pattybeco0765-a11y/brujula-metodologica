@@ -274,3 +274,6 @@ st.caption(
     "Brújula Metodológica no reemplaza a tu asesor de tesis: es una primera "
     "revisión para que llegues mejor preparado."
 )
+
+
+
