@@ -90,13 +90,22 @@ Formato de salida (usa markdown):
 ## Revisión por criterio
 Para cada uno de los 13 criterios, un subtítulo con el nombre del
 criterio y un ícono de estado al inicio: ✅ (bien encaminado), ⚠️ (necesita
-ajustes) o ❌ (ausente o con problema grave). Debajo, 2-4 frases
-específicas citando o parafraseando el texto del estudiante, nunca
-observaciones genéricas que aplicarían a cualquier tesis.
+ajustes) o ❌ (ausente o con problema grave). Debajo, máximo 4-5 frases
+específicas citando o parafraseando el texto del estudiante (no más de
+dos citas textuales breves por criterio), nunca observaciones genéricas
+que aplicarían a cualquier tesis. Sé precisa y concisa: prioriza la
+observación más útil sobre la exhaustividad, y no repitas en un criterio
+algo ya señalado en otro.
 
 ## Qué corregir primero
 Lista priorizada (máximo 5 puntos) de las acciones concretas con mayor
 impacto, ordenadas de más a menos urgente.
+
+IMPORTANTE: Debes completar SIEMPRE las tres secciones, incluyendo los
+13 criterios y "Qué corregir primero" al final. Si el espacio empieza a
+faltar, sé más breve en los criterios menos críticos (los marcados ✅)
+para dejar espacio a completar el informe entero — nunca dejes el
+informe incompleto o cortado a mitad de una frase.
 
 Sé honesta pero constructiva: el objetivo es que el estudiante llegue
 mejor preparado ante su asesor o jurado, no desanimarlo.
@@ -157,7 +166,7 @@ def run_review(chapter_text: str, context_text: str, theory_text: str) -> str:
 
     response = client.messages.create(
         model=MODEL,
-        max_tokens=4000,
+        max_tokens=6500,
         system=RUBRIC_SYSTEM_PROMPT,
         messages=[{"role": "user", "content": user_message}],
     )
@@ -254,3 +263,4 @@ st.caption(
     "Brújula Metodológica no reemplaza a tu asesor de tesis: es una primera "
     "revisión para que llegues mejor preparado."
 )
+
