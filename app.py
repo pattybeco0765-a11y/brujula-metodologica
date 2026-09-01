@@ -177,7 +177,6 @@ def run_review(chapter_text: str, context_text: str, theory_text: str) -> str:
     response = client.messages.create(
         model=MODEL,
         max_tokens=6500,
-        temperature=0.3,
         system=RUBRIC_SYSTEM_PROMPT,
         messages=[{"role": "user", "content": user_message}],
     )
@@ -274,6 +273,3 @@ st.caption(
     "Brújula Metodológica no reemplaza a tu asesor de tesis: es una primera "
     "revisión para que llegues mejor preparado."
 )
-
-
-
