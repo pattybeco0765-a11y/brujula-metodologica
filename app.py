@@ -1,4 +1,4 @@
-"""
+
 Brújula Metodológica — motor de revisión automática de capítulos de
 metodología de investigación.
 
@@ -14,11 +14,18 @@ Cómo funciona:
 Requiere una clave de API de Anthropic (https://console.anthropic.com/)
 guardada como ANTHROPIC_API_KEY en los "Secrets" de Streamlit Community
 Cloud (ver instrucciones de despliegue en el plan de negocio).
+
+CONTROL DE ACCESO (actualizado): el código de acceso ya NO se compara
+contra una lista fija que hay que actualizar a mano. En su lugar, la app
+le pregunta directamente a Gumroad, en tiempo real, si el código es
+válido para este producto (API de verificación de licencias de Gumroad).
+Esto elimina el paso manual de copiar cada código nuevo a los Secrets.
 """
 
 import os
 from datetime import datetime
 
+import requests
 import streamlit as st
 from anthropic import Anthropic
 
@@ -34,6 +41,12 @@ st.set_page_config(
 
 PRICE_USD = 12
 MODEL = "claude-sonnet-4-5"
+
+# Permalink de tu producto en Gumroad: es la parte de la URL después de
+# "/l/". Para https://pattybeacon.gumroad.com/l/fhcidx el permalink es
+# "fhcidx". No es un dato sensible (ya es público en tu link de venta),
+# así que puede vivir aquí en el código sin problema.
+GUMROAD_PRODUCT_PERMALINK = "fhcidx"
 
 RUBRIC_SYSTEM_PROMPT = """\
 Eres una asesora experta en metodología de la investigación con más de 25
@@ -123,30 +136,65 @@ mejor preparado ante su asesor o jurado, no desanimarlo.
 
 
 # ----------------------------------------------------------------------
-# Acceso (control simple de pago)
+# Acceso (control de pago)
 # ----------------------------------------------------------------------
 
-def get_valid_codes() -> set:
-    """Lee los códigos de acceso válidos desde los Secrets de Streamlit.
+def get_manual_override_codes() -> set:
+    """Códigos manuales opcionales (respaldo/pruebas).
 
-    En Streamlit Community Cloud, agrega en Settings -> Secrets:
+    Estos NO son obligatorios. Sirven para que tú (Patty) puedas probar
+    la app sin tener que comprar cada vez, o como respaldo si la API de
+    Gumroad estuviera caída en algún momento.
 
-        ACCESS_CODES = "codigo-uno,codigo-dos,codigo-tres"
+    En Streamlit Community Cloud, Settings -> Secrets:
 
-    Genera y entrega un código distinto por cada venta en Gumroad/Payhip
-    (ambos permiten enviar automáticamente un código único al comprador).
+        ACCESS_CODES = "codigo-de-prueba-tuyo"
+
+    Si dejas ACCESS_CODES vacío o sin configurar, esto simplemente no se
+    usa y todo pasa por la verificación real de Gumroad.
     """
     raw = st.secrets.get("ACCESS_CODES", os.environ.get("ACCESS_CODES", ""))
     return {c.strip() for c in raw.split(",") if c.strip()}
 
 
+def check_access_via_gumroad(code: str) -> bool:
+    """Verifica el código directamente contra la API de Gumroad.
+
+    Cada venta genera un código único en Gumroad. En vez de mantener una
+    lista manual en Streamlit, le preguntamos a Gumroad en tiempo real si
+    ese código es válido para este producto. Así no hace falta copiar
+    nada a mano nunca más.
+    """
+    try:
+        response = requests.post(
+            "https://api.gumroad.com/v2/licenses/verify",
+            data={
+                "product_permalink": GUMROAD_PRODUCT_PERMALINK,
+                "license_key": code,
+            },
+            timeout=10,
+        )
+        data = response.json()
+        return bool(data.get("success"))
+    except Exception:
+        # Si Gumroad no responde (caída temporal, sin internet, etc.), no
+        # dejamos pasar por defecto — mejor un falso rechazo (la
+        # estudiante escribe al correo de soporte) que dejar pasar a
+        # cualquiera sin código válido.
+        return False
+
+
 def check_access(code: str) -> bool:
-    valid_codes = get_valid_codes()
-    if not valid_codes:
-        # Si no se ha configurado ningún código todavía (fase de pruebas),
-        # no bloquear el acceso.
+    code = code.strip()
+    if not code:
+        return False
+
+    # 1. Códigos manuales opcionales (pruebas tuyas / respaldo).
+    if code in get_manual_override_codes():
         return True
-    return code.strip() in valid_codes
+
+    # 2. Verificación real contra Gumroad.
+    return check_access_via_gumroad(code)
 
 
 # ----------------------------------------------------------------------
