@@ -1,4 +1,4 @@
-
+"""
 Brújula Metodológica — motor de revisión automática de capítulos de
 metodología de investigación.
 
