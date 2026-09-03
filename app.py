@@ -42,11 +42,12 @@ st.set_page_config(
 PRICE_USD = 12
 MODEL = "claude-sonnet-4-5"
 
-# Permalink de tu producto en Gumroad: es la parte de la URL después de
-# "/l/". Para https://pattybeacon.gumroad.com/l/fhcidx el permalink es
-# "fhcidx". No es un dato sensible (ya es público en tu link de venta),
-# así que puede vivir aquí en el código sin problema.
-GUMROAD_PRODUCT_PERMALINK = "fhcidx"
+# Product ID de tu producto en Gumroad (no el permalink). Gumroad requiere
+# este identificador para verificar licencias de productos creados a partir
+# de enero de 2023. Lo encuentras en Gumroad -> Products -> tu producto ->
+# Content, en el bloque "Use your product ID to verify licenses through
+# the API".
+GUMROAD_PRODUCT_ID = "pvfUkhgEFLsnKnyMf7WlAw=="
 
 RUBRIC_SYSTEM_PROMPT = """\
 Eres una asesora experta en metodología de la investigación con más de 25
@@ -157,43 +158,74 @@ def get_manual_override_codes() -> set:
     return {c.strip() for c in raw.split(",") if c.strip()}
 
 
-def check_access_via_gumroad(code: str) -> bool:
-    """Verifica el código directamente contra la API de Gumroad.
+def check_access_via_gumroad(code: str) -> tuple[bool, str]:
+    """Verifica el código contra Gumroad y aplica la política de 1 solo uso.
 
     Cada venta genera un código único en Gumroad. En vez de mantener una
     lista manual en Streamlit, le preguntamos a Gumroad en tiempo real si
-    ese código es válido para este producto. Así no hace falta copiar
-    nada a mano nunca más.
+    ese código es válido para este producto — y además usamos el contador
+    de "uses" de Gumroad para permitir solo UNA revisión por código.
+
+    Devuelve una tupla (permitido, motivo). El motivo sirve para mostrar
+    un mensaje distinto según el caso: "codigo_invalido",
+    "codigo_ya_usado", "error_conexion" u "ok".
     """
     try:
-        response = requests.post(
+        # Paso 1: preguntamos el estado del código SIN gastar el uso
+        # todavía, solo para ver si ya se usó antes.
+        check_response = requests.post(
             "https://api.gumroad.com/v2/licenses/verify",
             data={
-                "product_permalink": GUMROAD_PRODUCT_PERMALINK,
+                "product_id": GUMROAD_PRODUCT_ID,
                 "license_key": code,
+                "increment_uses_count": "false",
             },
             timeout=10,
         )
-        data = response.json()
-        return bool(data.get("success"))
+        data = check_response.json()
+
+        if not data.get("success"):
+            return False, "codigo_invalido"
+
+        if data.get("uses", 0) >= 1:
+            return False, "codigo_ya_usado"
+
+        # Paso 2: el código es válido y nunca se ha usado -> lo marcamos
+        # como usado (incrementamos el contador en Gumroad) antes de
+        # dejarlo pasar, para que un segundo intento futuro sea rechazado.
+        confirm_response = requests.post(
+            "https://api.gumroad.com/v2/licenses/verify",
+            data={
+                "product_id": GUMROAD_PRODUCT_ID,
+                "license_key": code,
+                "increment_uses_count": "true",
+            },
+            timeout=10,
+        )
+        confirm_data = confirm_response.json()
+        if not confirm_data.get("success"):
+            return False, "codigo_invalido"
+
+        return True, "ok"
     except Exception:
         # Si Gumroad no responde (caída temporal, sin internet, etc.), no
-        # dejamos pasar por defecto — mejor un falso rechazo (la
-        # estudiante escribe al correo de soporte) que dejar pasar a
-        # cualquiera sin código válido.
-        return False
+        # dejamos pasar por defecto — mejor un falso rechazo (la persona
+        # escribe al correo de soporte) que dejar pasar sin verificar.
+        return False, "error_conexion"
 
 
-def check_access(code: str) -> bool:
+def check_access(code: str) -> tuple[bool, str]:
     code = code.strip()
     if not code:
-        return False
+        return False, "codigo_invalido"
 
-    # 1. Códigos manuales opcionales (pruebas tuyas / respaldo).
+    # 1. Códigos manuales opcionales (tus pruebas / uso en clase). Estos
+    # NO pasan por Gumroad y por lo tanto no tienen límite de usos —
+    # pensados para que tú puedas usar la app libremente.
     if code in get_manual_override_codes():
-        return True
+        return True, "ok"
 
-    # 2. Verificación real contra Gumroad.
+    # 2. Verificación real contra Gumroad, con límite de 1 uso.
     return check_access_via_gumroad(code)
 
 
@@ -290,20 +322,36 @@ with col1:
 if submitted:
     if not chapter_text.strip():
         st.error("Pega el texto de tu capítulo de metodología antes de continuar.")
-    elif not check_access(access_code):
-        st.error(
-            "Código de acceso no válido. Si ya pagaste y el código no funciona, "
-            "escribe a pattybeco0765@gmail.com."
-        )
     else:
-        with st.spinner("Revisando tu capítulo con los 13 criterios..."):
-            try:
-                st.session_state.review_result = run_review(
-                    chapter_text, context_text, theory_text
+        access_ok, access_reason = check_access(access_code)
+        if not access_ok:
+            if access_reason == "codigo_ya_usado":
+                st.error(
+                    "Este código ya fue utilizado para una revisión anterior. "
+                    "Cada código permite una sola revisión. Si necesitas otra "
+                    "(por ejemplo, por un error técnico al generar tu informe "
+                    "anterior), escribe a pattybeco0765@gmail.com."
                 )
-            except Exception as exc:  # noqa: BLE001
-                st.session_state.review_result = None
-                st.error(f"No se pudo generar la revisión: {exc}")
+            elif access_reason == "error_conexion":
+                st.error(
+                    "No pudimos verificar tu código en este momento (problema "
+                    "de conexión). Intenta de nuevo en un minuto, o escribe a "
+                    "pattybeco0765@gmail.com si el problema persiste."
+                )
+            else:
+                st.error(
+                    "Código de acceso no válido. Si ya pagaste y el código no "
+                    "funciona, escribe a pattybeco0765@gmail.com."
+                )
+        else:
+            with st.spinner("Revisando tu capítulo con los 13 criterios..."):
+                try:
+                    st.session_state.review_result = run_review(
+                        chapter_text, context_text, theory_text
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    st.session_state.review_result = None
+                    st.error(f"No se pudo generar la revisión: {exc}")
 
 if st.session_state.review_result:
     st.divider()
