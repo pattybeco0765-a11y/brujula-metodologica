@@ -159,20 +159,25 @@ def get_manual_override_codes() -> set:
 
 
 def check_access_via_gumroad(code: str) -> tuple[bool, str]:
-    """Verifica el código contra Gumroad y aplica la política de 1 solo uso.
+    """Verifica el código contra Gumroad y aplica la política de 2 usos.
 
     Cada venta genera un código único en Gumroad. En vez de mantener una
     lista manual en Streamlit, le preguntamos a Gumroad en tiempo real si
     ese código es válido para este producto — y además usamos el contador
-    de "uses" de Gumroad para permitir solo UNA revisión por código.
+    de "uses" de Gumroad para permitir hasta DOS revisiones por código
+    (la segunda funciona como colchón ante un problema técnico o un
+    intento interrumpido, sin abrir la puerta a reutilizarlo para
+    trabajos completamente distintos).
 
     Devuelve una tupla (permitido, motivo). El motivo sirve para mostrar
     un mensaje distinto según el caso: "codigo_invalido",
     "codigo_ya_usado", "error_conexion" u "ok".
     """
+    MAX_USES = 2
+
     try:
         # Paso 1: preguntamos el estado del código SIN gastar el uso
-        # todavía, solo para ver si ya se usó antes.
+        # todavía, solo para ver cuántas veces se ha usado antes.
         check_response = requests.post(
             "https://api.gumroad.com/v2/licenses/verify",
             data={
@@ -187,12 +192,11 @@ def check_access_via_gumroad(code: str) -> tuple[bool, str]:
         if not data.get("success"):
             return False, "codigo_invalido"
 
-        if data.get("uses", 0) >= 1:
+        if data.get("uses", 0) >= MAX_USES:
             return False, "codigo_ya_usado"
 
-        # Paso 2: el código es válido y nunca se ha usado -> lo marcamos
-        # como usado (incrementamos el contador en Gumroad) antes de
-        # dejarlo pasar, para que un segundo intento futuro sea rechazado.
+        # Paso 2: el código es válido y todavía tiene usos disponibles ->
+        # incrementamos el contador en Gumroad antes de dejarlo pasar.
         confirm_response = requests.post(
             "https://api.gumroad.com/v2/licenses/verify",
             data={
@@ -327,10 +331,9 @@ if submitted:
         if not access_ok:
             if access_reason == "codigo_ya_usado":
                 st.error(
-                    "Este código ya fue utilizado para una revisión anterior. "
-                    "Cada código permite una sola revisión. Si necesitas otra "
-                    "(por ejemplo, por un error técnico al generar tu informe "
-                    "anterior), escribe a pattybeco0765@gmail.com."
+                    "Este código ya alcanzó su límite de 2 revisiones. Si "
+                    "necesitas una revisión adicional, escribe a "
+                    "pattybeco0765@gmail.com."
                 )
             elif access_reason == "error_conexion":
                 st.error(
